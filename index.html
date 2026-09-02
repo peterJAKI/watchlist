@@ -82,6 +82,11 @@
     .sync-btn:active { opacity: 0.8; }
     .sync-msg { text-align: center; color: #00bcd4; font-size: 13px; min-height: 18px; margin-top: 8px; }
 
+    .hinweis {
+      background: #1a1a1a; border: 1px solid #444; color: #999;
+      padding: 10px 12px; border-radius: 8px; font-size: 12px; line-height: 1.6; margin-bottom: 12px;
+    }
+
     .rate-warn {
       background: #1a1a1a; border: 1px solid #ffd700; color: #ffd700;
       padding: 8px 10px; border-radius: 8px; font-size: 12px; margin-bottom: 10px;
@@ -92,7 +97,7 @@
 
 <h1>📊 Meine Watchlist</h1>
 
-<div class="tabs">
+<div class="tabs" id="tabs">
   <button class="tab-btn active" id="tabCrypto" onclick="switchTab('crypto')">🪙 Crypto</button>
   <button class="tab-btn" id="tabStock" onclick="switchTab('stock')">📈 Aktien</button>
 </div>
@@ -115,9 +120,14 @@
 
 <div class="legend">
   <div><b>🟢 Kauf: Kurssturz</b> — Kurs 24h stark gefallen</div>
-  <div><b>🔵 Kauf: Nahe Tief</b> — nahe 52-Wochen-Tief (Aktie) bzw. weit unter Allzeithoch (Crypto)</div>
-  <div><b>⚪ Kauf: Unter Ø</b> — Kurs unter 50- und 200-Tage-Durchschnitt (nur Aktien)</div>
+  <div id="legendLow"><b>🔵 Kauf: Nahe Tief</b> — nahe 52-Wochen-Tief (Aktie) bzw. weit unter Allzeithoch (Crypto)</div>
+  <div id="legendAvg"><b>⚪ Kauf: Unter Ø</b> — Kurs unter 50- und 200-Tage-Durchschnitt (nur Aktien)</div>
   <div><b>🟡 Verkauf: Kursanstieg</b> — Kurs 24h stark gestiegen</div>
+</div>
+
+<div class="hinweis" id="aktienHinweis" style="display:none;">
+  ℹ️ Aktien sind vorübergehend abgeschaltet — Yahoo hat die Kursschnittstelle gesperrt.
+  Deine gespeicherten Aktien bleiben erhalten und tauchen wieder auf, sobald es eine neue Quelle gibt.
 </div>
 
 <div id="loadingMsg" class="loading" style="display:none;">Kurse werden geladen...</div>
@@ -136,6 +146,11 @@
 
 <script>
 // ---------- Konfiguration ----------
+// Aktien sind abgeschaltet: Yahoo hat die Kursschnittstelle gesperrt (401 Unauthorized)
+// und es gibt derzeit keine verlaessliche kostenlose Alternative ohne Konto.
+// Auf true setzen, sobald wieder eine Quelle angebunden ist -- der Rest des Codes bleibt.
+const AKTIEN_AKTIV = false;
+
 const BUY_DROP_THRESHOLD = -5;
 const SELL_RISE_THRESHOLD = 5;
 const ATH_DISTANCE_THRESHOLD = -50;
@@ -408,7 +423,9 @@ async function refreshStocks() {
 
 async function refreshAll() {
   document.getElementById("loadingMsg").style.display = "block";
-  await Promise.all([refreshCrypto(), refreshStocks(), fetchExchangeRate()]);
+  const aufgaben = [refreshCrypto(), fetchExchangeRate()];
+  if (AKTIEN_AKTIV) aufgaben.push(refreshStocks());
+  await Promise.all(aufgaben);
   document.getElementById("loadingMsg").style.display = "none";
   showItems(document.getElementById("searchInput").value);
 }
@@ -520,7 +537,7 @@ document.getElementById("addBtn").addEventListener("click", function() {
   saveItems();
   document.getElementById("itemInput").value = "";
   showItems();
-  if (currentTab === "crypto") refreshCrypto(); else refreshStocks();
+  if (currentTab === "crypto") refreshCrypto(); else if (AKTIEN_AKTIV) refreshStocks();
 });
 
 document.getElementById("searchInput").addEventListener("keyup", function() {
@@ -550,6 +567,18 @@ if (hashMatch) {
   history.replaceState(null, "", location.pathname + location.search);
 }
 
+// Aktien abgeschaltet: Reiter ausblenden, nur Krypto zeigen, Aktien-Legende weg.
+function applyAktienSichtbarkeit() {
+  if (AKTIEN_AKTIV) return;
+  currentTab = "crypto";
+  document.getElementById("tabs").style.display = "none";
+  document.getElementById("aktienHinweis").style.display = "block";
+  document.getElementById("legendAvg").style.display = "none";
+  document.getElementById("legendLow").innerHTML = "<b>🔵 Kauf: Nahe Tief</b> — weit unter dem Allzeithoch";
+  document.getElementById("itemInput").placeholder = "z.B. bitcoin, ethereum";
+}
+
+applyAktienSichtbarkeit();
 document.getElementById("currUsd").classList.toggle("active", currentCurrency === "usd");
 document.getElementById("currEur").classList.toggle("active", currentCurrency === "eur");
 loadItems();
