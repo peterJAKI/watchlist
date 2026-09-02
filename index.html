@@ -139,10 +139,16 @@ let dataCache = {};
 let currentTab = "crypto";
 let currentCurrency = localStorage.getItem("watchlistCurrency") || "usd";
 let usdToEur = null;
+let rateLimited = false;
 
 function loadItems() {
   const saved = localStorage.getItem("watchlist");
   items = saved ? JSON.parse(saved) : [];
+
+  const savedCache = localStorage.getItem("priceCache");
+  if (savedCache) {
+    try { dataCache = JSON.parse(savedCache); } catch (e) { dataCache = {}; }
+  }
 
   if (!localStorage.getItem("watchlistSeeded")) {
     DEFAULT_CRYPTO.forEach(id => {
@@ -186,7 +192,7 @@ async function fetchExchangeRate() {
 }
 
 function formatPrice(usdValue) {
-  if (typeof usdValue !== "number") return "Laden...";
+  if (typeof usdValue !== "number") return rateLimited ? "Kurz warten..." : "Lade Kurs...";
   if (currentCurrency === "eur") {
     if (!usdToEur) return "Lade Kurs...";
     return (usdValue * usdToEur).toFixed(2) + " €";
@@ -265,6 +271,8 @@ async function refreshCrypto() {
   try {
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}&price_change_percentage=24h,7d`;
     const res = await fetch(url);
+    if (res.status === 429) { rateLimited = true; return; }
+    if (!res.ok) return;
     const data = await res.json();
     data.forEach(coin => {
       dataCache[coin.id] = {
@@ -274,6 +282,8 @@ async function refreshCrypto() {
         athChangePct: coin.ath_change_percentage
       };
     });
+    rateLimited = false;
+    localStorage.setItem("priceCache", JSON.stringify(dataCache));
   } catch (e) { }
   showItems(document.getElementById("searchInput").value);
 }
@@ -284,6 +294,7 @@ async function refreshStocks() {
   try {
     const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(",")}`;
     const res = await fetch(url);
+    if (!res.ok) return;
     const data = await res.json();
     const results = data.quoteResponse?.result || [];
     results.forEach(q => {
@@ -296,6 +307,7 @@ async function refreshStocks() {
         week52High: q.fiftyTwoWeekHigh
       };
     });
+    localStorage.setItem("priceCache", JSON.stringify(dataCache));
   } catch (e) { }
   showItems(document.getElementById("searchInput").value);
 }
@@ -344,7 +356,7 @@ document.getElementById("currEur").classList.toggle("active", currentCurrency ==
 loadItems();
 showItems();
 refreshAll();
-setInterval(refreshAll, 60000);
+setInterval(refreshAll, 180000);
 </script>
 
 </body>
