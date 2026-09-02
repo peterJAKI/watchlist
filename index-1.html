@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#00bcd4" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Watchlist" />
+  <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22Meine%20Watchlist%22,%22short_name%22:%22Watchlist%22,%22display%22:%22standalone%22,%22background_color%22:%22%23111111%22,%22theme_color%22:%2300bcd4%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%253Csvg%2520xmlns=%2527http://www.w3.org/2000/svg%2527%2520viewBox=%25270%25200%2520192%2520192%2527%253E%253Crect%2520fill=%2527%252300bcd4%2527%2520width=%2527192%2527%2520height=%2527192%2527%2520rx=%252732%2527/%253E%253Ctext%2520x=%252796%2527%2520y=%2527125%2527%2520font-size=%252790%2527%2520text-anchor=%2527middle%2527%253E%25F0%259F%2593%258A%253C/text%253E%253C/svg%253E%22,%22sizes%22:%22192x192%22,%22type%22:%22image/svg%2Bxml%22,%22purpose%22:%22any%22},{%22src%22:%22data:image/svg+xml,%253Csvg%2520xmlns=%2527http://www.w3.org/2000/svg%2527%2520viewBox=%25270%25200%2520192%2520192%2527%253E%253Crect%2520fill=%2527%252300bcd4%2527%2520width=%2527192%2527%2520height=%2527192%2527%2520rx=%252732%2527/%253E%253Ctext%2520x=%252796%2527%2520y=%2527125%2527%2520font-size=%252790%2527%2520text-anchor=%2527middle%2527%253E%25F0%259F%2593%258A%253C/text%253E%253C/svg%253E%22,%22sizes%22:%22512x512%22,%22type%22:%22image/svg%2Bxml%22,%22purpose%22:%22maskable%22}]}" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2300bcd4' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle'%3E%F0%9F%93%8A%3C/text%3E%3C/svg%3E" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2300bcd4' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle'%3E%F0%9F%93%8A%3C/text%3E%3C/svg%3E" />
+  <title>Meine Watchlist</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #111;
+      color: #eee;
+      padding: 12px;
+      padding-bottom: 40px;
+    }
+    h1 { text-align: center; margin-bottom: 14px; color: #00bcd4; font-size: 22px; }
+
+    .row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+    .tab-btn {
+      flex: 1; padding: 12px; border-radius: 8px; border: 2px solid #333;
+      background: #1a1a1a; color: #888; font-size: 15px; font-weight: bold; cursor: pointer;
+    }
+    .tab-btn.active { border-color: #00bcd4; color: #00bcd4; background: #00bcd422; }
+
+    .curr-btn {
+      flex: 1; padding: 8px; border-radius: 8px; border: 2px solid #333;
+      background: #1a1a1a; color: #888; font-size: 13px; font-weight: bold; cursor: pointer;
+    }
+    .curr-btn.active { border-color: #ffd700; color: #ffd700; background: #ffd70022; }
+
+    .section-label { font-size: 13px; color: #888; margin-bottom: 6px; margin-top: 10px; }
+    .controls { display: flex; gap: 8px; margin-bottom: 12px; }
+    #itemInput { flex: 1; padding: 12px; border-radius: 8px; border: none; font-size: 16px; background: #222; color: #eee; }
+    #addBtn { padding: 12px 16px; background: #00bcd4; color: #111; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; white-space: nowrap; }
+    #addBtn:active { opacity: 0.8; }
+    #searchInput { width: 100%; padding: 10px; margin-bottom: 12px; border-radius: 8px; border: none; background: #222; color: #eee; font-size: 14px; }
+
+    .legend {
+      background: #1a1a1a; padding: 10px 12px; border-radius: 8px; margin-bottom: 14px;
+      font-size: 12px; line-height: 1.9;
+    }
+    .legend b { color: #ccc; }
+
+    .card {
+      background: #1a1a1a; padding: 12px; margin-bottom: 8px; border-radius: 8px;
+      border-left: 4px solid #00bcd4; display: flex; justify-content: space-between; align-items: flex-start;
+    }
+    .card-info { flex: 1; }
+    .card-type { font-size: 11px; color: #888; text-transform: uppercase; }
+    .card-name { font-size: 16px; font-weight: bold; margin: 4px 0; }
+    .card-price { font-size: 14px; color: #00bcd4; }
+    .card-change { font-size: 12px; margin-top: 2px; }
+    .change-up { color: #4caf50; }
+    .change-down { color: #ff5252; }
+    .signal-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .signal {
+      display: inline-block; padding: 4px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: bold; background: #4caf5033; color: #4caf50; border: 1px solid #4caf50;
+    }
+    .signal-sell { background: #ffd70033; color: #ffd700; border: 1px solid #ffd700; }
+    .signal-low  { background: #00bcd433; color: #00bcd4; border: 1px solid #00bcd4; }
+    .signal-avg  { background: #ffffff22; color: #fff;    border: 1px solid #fff; }
+
+    .btn-del { background: #ff5252; color: white; border: none; padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; flex-shrink: 0; margin-left: 8px; }
+    .empty { text-align: center; color: #666; margin-top: 30px; }
+    .loading { text-align: center; color: #666; font-size: 13px; margin-bottom: 10px; }
+    .footnote { text-align: center; color: #555; font-size: 11px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+<h1>📊 Meine Watchlist</h1>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tabCrypto" onclick="switchTab('crypto')">🪙 Crypto</button>
+  <button class="tab-btn" id="tabStock" onclick="switchTab('stock')">📈 Aktien</button>
+</div>
+
+<div class="row">
+  <button class="curr-btn active" id="currUsd" onclick="switchCurrency('usd')">$ USD</button>
+  <button class="curr-btn" id="currEur" onclick="switchCurrency('eur')">€ EUR</button>
+</div>
+
+<div class="section-label">➕ Neu hinzufügen (zur aktuellen Liste):</div>
+<div class="controls">
+  <input id="itemInput" type="text" placeholder="z.B. bitcoin oder AAPL" />
+  <button id="addBtn">Hinzufügen</button>
+</div>
+
+<div class="section-label">🔍 In Liste suchen:</div>
+<input id="searchInput" type="text" placeholder="Suchbegriff eingeben..." />
+
+<div class="legend">
+  <div><b>🟢 Kauf: Kurssturz</b> — Kurs 24h stark gefallen</div>
+  <div><b>🔵 Kauf: Nahe Tief</b> — nahe 52-Wochen-Tief (Aktie) bzw. weit unter Allzeithoch (Crypto)</div>
+  <div><b>⚪ Kauf: Unter Ø</b> — Kurs unter 50- und 200-Tage-Durchschnitt (nur Aktien)</div>
+  <div><b>🟡 Verkauf: Kursanstieg</b> — Kurs 24h stark gestiegen</div>
+</div>
+
+<div id="loadingMsg" class="loading" style="display:none;">Kurse werden geladen...</div>
+<div id="itemList"></div>
+
+<div class="footnote">Alle Signale sind technische Hinweise, keine Finanzberatung. Preise in EUR sind umgerechnet (Wechselkurs).</div>
+
+<script>
+// ---------- Konfiguration ----------
+const BUY_DROP_THRESHOLD = -5;
+const SELL_RISE_THRESHOLD = 5;
+const ATH_DISTANCE_THRESHOLD = -50;
+const WEEK52_LOW_PROXIMITY = 5;
+
+const DEFAULT_CRYPTO = [
+  "bitcoin","ethereum","tether","binancecoin","solana","ripple","usd-coin","cardano","dogecoin","avalanche-2",
+  "tron","polkadot","chainlink","matic-network","litecoin","shiba-inu","bitcoin-cash","uniswap","stellar","monero",
+  "ethereum-classic","cosmos","filecoin","internet-computer","hedera-hashgraph","near","aptos","quant-network","vechain","algorand",
+  "the-graph","maker","aave","eos","tezos","theta-token","flow","axie-infinity","decentraland","the-sandbox",
+  "chiliz","iota","neo","zcash","dash","kusama","enjincoin","basic-attention-token","curve-dao-token","pancakeswap-token"
+];
+
+const DEFAULT_STOCKS = [
+  "AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","BRK-B","JPM","V",
+  "UNH","XOM","JNJ","WMT","PG","MA","HD","CVX","MRK","ABBV",
+  "PEP","KO","COST","AVGO","PFE","TMO","MCD","CSCO","ACN","ABT",
+  "DHR","NKE","LIN","ADBE","CRM","NFLX","TXN","VZ","CMCSA","INTC",
+  "WFC","DIS","PM","BMY","UPS","RTX","ORCL","QCOM","AMD","IBM"
+];
+
+// ---------- State ----------
+let items = [];
+let dataCache = {};
+let currentTab = "crypto";
+let currentCurrency = localStorage.getItem("watchlistCurrency") || "usd";
+let usdToEur = null;
+let eurRateError = null;
+let rateLimited = false;
+
+function loadItems() {
+  const saved = localStorage.getItem("watchlist");
+  items = saved ? JSON.parse(saved) : [];
+
+  const savedCache = localStorage.getItem("priceCache");
+  if (savedCache) {
+    try { dataCache = JSON.parse(savedCache); } catch (e) { dataCache = {}; }
+  }
+
+  if (!localStorage.getItem("watchlistSeeded")) {
+    DEFAULT_CRYPTO.forEach(id => {
+      if (!items.find(i => i.name === id && i.type === "crypto")) items.push({ name: id, type: "crypto" });
+    });
+    DEFAULT_STOCKS.forEach(sym => {
+      const s = sym.toLowerCase();
+      if (!items.find(i => i.name === s && i.type === "stock")) items.push({ name: s, type: "stock" });
+    });
+    localStorage.setItem("watchlistSeeded", "1");
+    saveItems();
+  }
+}
+
+function saveItems() {
+  localStorage.setItem("watchlist", JSON.stringify(items));
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById("tabCrypto").classList.toggle("active", tab === "crypto");
+  document.getElementById("tabStock").classList.toggle("active", tab === "stock");
+  document.getElementById("itemInput").placeholder = tab === "crypto" ? "z.B. bitcoin, ethereum" : "z.B. AAPL, MSFT";
+  showItems(document.getElementById("searchInput").value);
+}
+
+function switchCurrency(curr) {
+  currentCurrency = curr;
+  localStorage.setItem("watchlistCurrency", curr);
+  document.getElementById("currUsd").classList.toggle("active", curr === "usd");
+  document.getElementById("currEur").classList.toggle("active", curr === "eur");
+  showItems(document.getElementById("searchInput").value);
+  if (curr === "eur" && !usdToEur) {
+    fetchExchangeRate().then(() => showItems(document.getElementById("searchInput").value));
+  }
+}
+
+async function fetchExchangeRate() {
+  try {
+    const res = await fetch("https://api.frankfurter.app/latest?from=USD&to=EUR");
+    if (!res.ok) { eurRateError = `Fehler ${res.status}`; return; }
+    const data = await res.json();
+    if (data.rates && data.rates.EUR) {
+      usdToEur = data.rates.EUR;
+      eurRateError = null;
+    } else {
+      eurRateError = "Kein Kurs erhalten";
+    }
+  } catch (e) {
+    eurRateError = "Netzwerkfehler: " + e.message;
+  }
+}
+
+function formatPrice(usdValue) {
+  if (typeof usdValue !== "number") return rateLimited ? "Kurz warten..." : "Lade Kurs...";
+  if (currentCurrency === "eur") {
+    if (!usdToEur) return eurRateError ? eurRateError : "Lade Kurs...";
+    return (usdValue * usdToEur).toFixed(2) + " €";
+  }
+  return usdValue.toFixed(2) + " USD";
+}
+
+function computeSignals(item, d) {
+  const signals = [];
+  if (!d) return signals;
+
+  if (typeof d.change24h === "number") {
+    if (d.change24h <= BUY_DROP_THRESHOLD) signals.push({ cls: "signal", text: "🟢 Kauf: Kurssturz" });
+    if (d.change24h >= SELL_RISE_THRESHOLD) signals.push({ cls: "signal-sell", text: "🟡 Verkauf: Kursanstieg" });
+  }
+
+  if (item.type === "crypto") {
+    if (typeof d.athChangePct === "number" && d.athChangePct <= ATH_DISTANCE_THRESHOLD) {
+      signals.push({ cls: "signal-low", text: `🔵 Kauf: Nahe Tief (${d.athChangePct.toFixed(0)}% vom ATH)` });
+    }
+  } else {
+    if (typeof d.price === "number" && typeof d.week52Low === "number" && d.week52Low > 0) {
+      const distPct = ((d.price - d.week52Low) / d.week52Low) * 100;
+      if (distPct <= WEEK52_LOW_PROXIMITY) signals.push({ cls: "signal-low", text: "🔵 Kauf: Nahe Jahrestief" });
+    }
+    if (typeof d.price === "number" && typeof d.avg50 === "number" && typeof d.avg200 === "number") {
+      if (d.price < d.avg50 && d.price < d.avg200) signals.push({ cls: "signal-avg", text: "⚪ Kauf: Unter Ø" });
+    }
+  }
+  return signals;
+}
+
+function showItems(filter = "") {
+  const list = document.getElementById("itemList");
+  const filtered = items
+    .filter(i => i.type === currentTab)
+    .filter(i => i.name.toLowerCase().includes(filter.toLowerCase()));
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty">Keine Einträge</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(item => {
+    const d = dataCache[item.name];
+    const priceText = formatPrice(d ? d.price : undefined);
+    const hasChange = d && typeof d.change24h === "number";
+    const changeClass = hasChange ? (d.change24h >= 0 ? "change-up" : "change-down") : "";
+    const changeText = hasChange ? `${d.change24h >= 0 ? "+" : ""}${d.change24h.toFixed(2)}% (24h)` : "";
+    const signals = computeSignals(item, d);
+
+    return `
+    <div class="card">
+      <div class="card-info">
+        <div class="card-type">${item.type === "crypto" ? "Kryptowährung" : "Aktie"}</div>
+        <div class="card-name">${item.name.toUpperCase()}</div>
+        <div class="card-price">${priceText}</div>
+        ${hasChange ? `<div class="card-change ${changeClass}">${changeText}</div>` : ""}
+        ${signals.length ? `<div class="signal-row">${signals.map(s => `<div class="${s.cls}">${s.text}</div>`).join("")}</div>` : ""}
+      </div>
+      <button class="btn-del" onclick="deleteItem('${item.name}','${item.type}')">Löschen</button>
+    </div>`;
+  }).join("");
+}
+
+function deleteItem(name, type) {
+  items = items.filter(i => !(i.name === name && i.type === type));
+  saveItems();
+  showItems(document.getElementById("searchInput").value);
+}
+
+// ---------- Batch-Preisabruf (immer in USD, Umrechnung erfolgt erst bei Anzeige) ----------
+async function refreshCrypto() {
+  const ids = items.filter(i => i.type === "crypto").map(i => i.name);
+  if (ids.length === 0) return;
+  try {
+    const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}&price_change_percentage=24h,7d`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const errText = `Fehler ${res.status}`;
+      ids.forEach(id => { if (!dataCache[id]) dataCache[id] = {}; dataCache[id].error = errText; });
+      showItems(document.getElementById("searchInput").value);
+      return;
+    }
+    const data = await res.json();
+    data.forEach(coin => {
+      dataCache[coin.id] = {
+        price: coin.current_price,
+        change24h: coin.price_change_percentage_24h_in_currency,
+        change7d: coin.price_change_percentage_7d_in_currency,
+        athChangePct: coin.ath_change_percentage
+      };
+    });
+    localStorage.setItem("priceCache", JSON.stringify(dataCache));
+  } catch (e) {
+    ids.forEach(id => { if (!dataCache[id]) dataCache[id] = {}; dataCache[id].error = "Netzwerkfehler: " + e.message; });
+  }
+  showItems(document.getElementById("searchInput").value);
+}
+
+async function refreshStocks() {
+  const symbols = items.filter(i => i.type === "stock").map(i => i.name.toUpperCase());
+  if (symbols.length === 0) return;
+  try {
+    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(",")}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const errText = `Fehler ${res.status}`;
+      symbols.forEach(s => { const key = s.toLowerCase(); if (!dataCache[key]) dataCache[key] = {}; dataCache[key].error = errText; });
+      showItems(document.getElementById("searchInput").value);
+      return;
+    }
+    const data = await res.json();
+    const results = data.quoteResponse?.result || [];
+    results.forEach(q => {
+      dataCache[q.symbol.toLowerCase()] = {
+        price: q.regularMarketPrice,
+        change24h: q.regularMarketChangePercent,
+        avg50: q.fiftyDayAverage,
+        avg200: q.twoHundredDayAverage,
+        week52Low: q.fiftyTwoWeekLow,
+        week52High: q.fiftyTwoWeekHigh
+      };
+    });
+    localStorage.setItem("priceCache", JSON.stringify(dataCache));
+  } catch (e) {
+    symbols.forEach(s => { const key = s.toLowerCase(); if (!dataCache[key]) dataCache[key] = {}; dataCache[key].error = "Netzwerkfehler: " + e.message; });
+  }
+  showItems(document.getElementById("searchInput").value);
+}
+
+async function refreshAll() {
+  document.getElementById("loadingMsg").style.display = "block";
+  await Promise.all([refreshCrypto(), refreshStocks(), fetchExchangeRate()]);
+  document.getElementById("loadingMsg").style.display = "none";
+  showItems(document.getElementById("searchInput").value);
+}
+
+// ---------- Steuerung ----------
+document.getElementById("addBtn").addEventListener("click", function() {
+  const name = document.getElementById("itemInput").value.trim().toLowerCase();
+  if (!name) return alert("Bitte eingeben!");
+  if (items.find(i => i.name === name && i.type === currentTab)) return alert("Bereits in der Liste!");
+
+  items.push({ name, type: currentTab });
+  saveItems();
+  document.getElementById("itemInput").value = "";
+  showItems();
+  if (currentTab === "crypto") refreshCrypto(); else refreshStocks();
+});
+
+document.getElementById("searchInput").addEventListener("keyup", function() {
+  showItems(this.value);
+});
+
+document.getElementById("itemInput").addEventListener("keypress", function(e) {
+  if (e.key === "Enter") document.getElementById("addBtn").click();
+});
+
+// ---------- Start ----------
+if ('serviceWorker' in navigator) {
+  try {
+    navigator.serviceWorker.register('data:application/javascript,' + encodeURIComponent(
+      "self.addEventListener('install',e=>self.skipWaiting());" +
+      "self.addEventListener('activate',e=>e.waitUntil(clients.claim()));" +
+      "self.addEventListener('fetch',e=>{});"
+    ));
+  } catch (e) { }
+}
+
+document.getElementById("currUsd").classList.toggle("active", currentCurrency === "usd");
+document.getElementById("currEur").classList.toggle("active", currentCurrency === "eur");
+loadItems();
+showItems();
+refreshAll();
+setInterval(refreshAll, 180000);
+</script>
+
+</body>
+</html>
