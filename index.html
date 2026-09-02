@@ -73,6 +73,14 @@
     .empty { text-align: center; color: #666; margin-top: 30px; }
     .loading { text-align: center; color: #666; font-size: 13px; margin-bottom: 10px; }
     .footnote { text-align: center; color: #555; font-size: 11px; margin-top: 20px; }
+
+    .sync { margin-top: 24px; border-top: 1px solid #333; padding-top: 14px; }
+    .sync-btn {
+      flex: 1; padding: 12px; border-radius: 8px; border: 2px solid #333;
+      background: #1a1a1a; color: #ccc; font-size: 14px; font-weight: bold; cursor: pointer;
+    }
+    .sync-btn:active { opacity: 0.8; }
+    .sync-msg { text-align: center; color: #00bcd4; font-size: 13px; min-height: 18px; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -107,6 +115,15 @@
 
 <div id="loadingMsg" class="loading" style="display:none;">Kurse werden geladen...</div>
 <div id="itemList"></div>
+
+<div class="sync">
+  <div class="section-label">🔄 Liste auf anderes Gerät übertragen:</div>
+  <div class="controls">
+    <button class="sync-btn" id="shareBtn">📤 Teilen</button>
+    <button class="sync-btn" id="importBtn">📥 Einfügen</button>
+  </div>
+  <div class="sync-msg" id="syncMsg"></div>
+</div>
 
 <div class="footnote">Alle Signale sind technische Hinweise, keine Finanzberatung. Preise in EUR sind umgerechnet (Wechselkurs).</div>
 
@@ -343,7 +360,104 @@ async function refreshAll() {
   showItems(document.getElementById("searchInput").value);
 }
 
+// ---------- Sync: Liste teilen / übernehmen ----------
+function b64encode(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  bytes.forEach(b => bin += String.fromCharCode(b));
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function b64decode(code) {
+  let b = code.replace(/-/g, "+").replace(/_/g, "/");
+  while (b.length % 4) b += "=";
+  const bin = atob(b);
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function encodeList() {
+  const c = items.filter(i => i.type === "crypto").map(i => i.name).join(",");
+  const s = items.filter(i => i.type === "stock").map(i => i.name).join(",");
+  return b64encode("1|" + c + "|" + s);
+}
+
+function decodeList(code) {
+  const parts = b64decode(code).split("|");
+  if (parts[0] !== "1") throw new Error("Unbekanntes Format");
+  const out = [];
+  (parts[1] || "").split(",").filter(Boolean).forEach(n => out.push({ name: n, type: "crypto" }));
+  (parts[2] || "").split(",").filter(Boolean).forEach(n => out.push({ name: n, type: "stock" }));
+  return out;
+}
+
+function syncMsg(text) {
+  const el = document.getElementById("syncMsg");
+  el.textContent = text;
+  clearTimeout(syncMsg._t);
+  syncMsg._t = setTimeout(() => { el.textContent = ""; }, 4000);
+}
+
+function buildLink() {
+  return location.origin + location.pathname + "#w=" + encodeList();
+}
+
+async function shareList() {
+  const link = buildLink();
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "Meine Watchlist", url: link });
+      return;
+    } catch (e) {
+      if (e.name === "AbortError") return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(link);
+    syncMsg("✓ Link kopiert — auf dem anderen Gerät öffnen");
+  } catch (e) {
+    prompt("Diesen Link kopieren und auf dem anderen Gerät öffnen:", link);
+  }
+}
+
+function importPrompt() {
+  const input = prompt("Link oder Code hier einfügen:");
+  if (input) applyImport(input);
+}
+
+function applyImport(text) {
+  let code = String(text).trim();
+  const m = code.match(/#w=([A-Za-z0-9\-_]+)/);
+  if (m) code = m[1];
+
+  let list;
+  try {
+    list = decodeList(code);
+  } catch (e) {
+    alert("Der Code ist ungültig oder unvollständig.");
+    return;
+  }
+  if (!list.length) {
+    alert("Der Code enthält keine Einträge.");
+    return;
+  }
+
+  const nc = list.filter(i => i.type === "crypto").length;
+  const ns = list.filter(i => i.type === "stock").length;
+  if (!confirm(`Watchlist übernehmen?\n\n${nc} Krypto, ${ns} Aktien\n\nDeine aktuelle Liste auf diesem Gerät wird ersetzt.`)) return;
+
+  items = list;
+  localStorage.setItem("watchlistSeeded", "1");
+  saveItems();
+  showItems(document.getElementById("searchInput").value);
+  refreshAll();
+  syncMsg(`✓ ${list.length} Einträge übernommen`);
+}
+
 // ---------- Steuerung ----------
+document.getElementById("shareBtn").addEventListener("click", shareList);
+document.getElementById("importBtn").addEventListener("click", importPrompt);
+
 document.getElementById("addBtn").addEventListener("click", function() {
   const name = document.getElementById("itemInput").value.trim().toLowerCase();
   if (!name) return alert("Bitte eingeben!");
@@ -375,10 +489,19 @@ if ('serviceWorker' in navigator) {
   } catch (e) { }
 }
 
+// Wurde die Seite über einen geteilten Link geöffnet? Code merken und URL säubern.
+let pendingImport = null;
+const hashMatch = location.hash.match(/^#w=([A-Za-z0-9\-_]+)$/);
+if (hashMatch) {
+  pendingImport = hashMatch[1];
+  history.replaceState(null, "", location.pathname + location.search);
+}
+
 document.getElementById("currUsd").classList.toggle("active", currentCurrency === "usd");
 document.getElementById("currEur").classList.toggle("active", currentCurrency === "eur");
 loadItems();
 showItems();
+if (pendingImport) applyImport(pendingImport);
 refreshAll();
 setInterval(refreshAll, 180000);
 </script>
