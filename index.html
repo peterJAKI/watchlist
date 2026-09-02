@@ -139,6 +139,7 @@ let dataCache = {};
 let currentTab = "crypto";
 let currentCurrency = localStorage.getItem("watchlistCurrency") || "usd";
 let usdToEur = null;
+let eurRateError = null;
 let rateLimited = false;
 
 function loadItems() {
@@ -181,20 +182,31 @@ function switchCurrency(curr) {
   document.getElementById("currUsd").classList.toggle("active", curr === "usd");
   document.getElementById("currEur").classList.toggle("active", curr === "eur");
   showItems(document.getElementById("searchInput").value);
+  if (curr === "eur" && !usdToEur) {
+    fetchExchangeRate().then(() => showItems(document.getElementById("searchInput").value));
+  }
 }
 
 async function fetchExchangeRate() {
   try {
     const res = await fetch("https://api.frankfurter.app/latest?from=USD&to=EUR");
+    if (!res.ok) { eurRateError = `Fehler ${res.status}`; return; }
     const data = await res.json();
-    if (data.rates && data.rates.EUR) usdToEur = data.rates.EUR;
-  } catch (e) { /* Rate bleibt wie zuvor / null */ }
+    if (data.rates && data.rates.EUR) {
+      usdToEur = data.rates.EUR;
+      eurRateError = null;
+    } else {
+      eurRateError = "Kein Kurs erhalten";
+    }
+  } catch (e) {
+    eurRateError = "Netzwerkfehler: " + e.message;
+  }
 }
 
 function formatPrice(usdValue) {
-  if (typeof usdValue !== "number") return rateLimited ? "Kurz warten..." : "Lade Kurs...";
+  if (typeof usdValue !== "number") return "—";
   if (currentCurrency === "eur") {
-    if (!usdToEur) return "Lade Kurs...";
+    if (!usdToEur) return eurRateError ? eurRateError : "—";
     return (usdValue * usdToEur).toFixed(2) + " €";
   }
   return usdValue.toFixed(2) + " USD";
@@ -271,8 +283,12 @@ async function refreshCrypto() {
   try {
     const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}&price_change_percentage=24h,7d`;
     const res = await fetch(url);
-    if (res.status === 429) { rateLimited = true; return; }
-    if (!res.ok) return;
+    if (!res.ok) {
+      const errText = `Fehler ${res.status}`;
+      ids.forEach(id => { if (!dataCache[id]) dataCache[id] = {}; dataCache[id].error = errText; });
+      showItems(document.getElementById("searchInput").value);
+      return;
+    }
     const data = await res.json();
     data.forEach(coin => {
       dataCache[coin.id] = {
@@ -282,9 +298,10 @@ async function refreshCrypto() {
         athChangePct: coin.ath_change_percentage
       };
     });
-    rateLimited = false;
     localStorage.setItem("priceCache", JSON.stringify(dataCache));
-  } catch (e) { }
+  } catch (e) {
+    ids.forEach(id => { if (!dataCache[id]) dataCache[id] = {}; dataCache[id].error = "Netzwerkfehler: " + e.message; });
+  }
   showItems(document.getElementById("searchInput").value);
 }
 
@@ -294,7 +311,12 @@ async function refreshStocks() {
   try {
     const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(",")}`;
     const res = await fetch(url);
-    if (!res.ok) return;
+    if (!res.ok) {
+      const errText = `Fehler ${res.status}`;
+      symbols.forEach(s => { const key = s.toLowerCase(); if (!dataCache[key]) dataCache[key] = {}; dataCache[key].error = errText; });
+      showItems(document.getElementById("searchInput").value);
+      return;
+    }
     const data = await res.json();
     const results = data.quoteResponse?.result || [];
     results.forEach(q => {
@@ -308,7 +330,9 @@ async function refreshStocks() {
       };
     });
     localStorage.setItem("priceCache", JSON.stringify(dataCache));
-  } catch (e) { }
+  } catch (e) {
+    symbols.forEach(s => { const key = s.toLowerCase(); if (!dataCache[key]) dataCache[key] = {}; dataCache[key].error = "Netzwerkfehler: " + e.message; });
+  }
   showItems(document.getElementById("searchInput").value);
 }
 
