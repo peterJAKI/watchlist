@@ -119,10 +119,17 @@
 <input id="searchInput" type="text" placeholder="Suchbegriff eingeben..." />
 
 <div class="legend">
-  <div><b>🟢 Kauf: Kurssturz</b> — Kurs 24h stark gefallen</div>
-  <div id="legendLow"><b>🔵 Kauf: Nahe Tief</b> — nahe 52-Wochen-Tief (Aktie) bzw. weit unter Allzeithoch (Crypto)</div>
+  <div><b>🟢 Kauf: Kurssturz</b> — Kurs 24h ≥ 5 % gefallen</div>
+  <div><b>🟢🟢 Kauf: Starker Kurssturz</b> — Kurs 24h ≥ 10 % gefallen</div>
+  <div><b>📉 Kauf: Woche schwach</b> — 7 Tage ≥ 15 % gefallen</div>
+  <div><b>⚡ Erholung?</b> — Woche im Minus, aber 24h wieder ≥ 3 % im Plus</div>
+  <div><b>🔻 Am Tagestief</b> — Kurs dicht am 24-Stunden-Tief</div>
+  <div id="legendLow"><b>🔵 Kauf: Nahe Tief</b> — weit unter Allzeithoch (Crypto) bzw. nahe 52-Wochen-Tief (Aktie)</div>
   <div id="legendAvg"><b>⚪ Kauf: Unter Ø</b> — Kurs unter 50- und 200-Tage-Durchschnitt (nur Aktien)</div>
-  <div><b>🟡 Verkauf: Kursanstieg</b> — Kurs 24h stark gestiegen</div>
+  <div><b>🟡 Verkauf: Kursanstieg</b> — Kurs 24h ≥ 5 % gestiegen</div>
+  <div><b>📈 Verkauf: Woche stark</b> — 7 Tage ≥ 15 % gestiegen</div>
+  <div><b>🔺 Am Tageshoch</b> — Kurs dicht am 24-Stunden-Hoch</div>
+  <div><b>🏆 Vorsicht: Nahe Allzeithoch</b> — höchstens 5 % unter dem Allzeithoch</div>
 </div>
 
 <div class="hinweis" id="aktienHinweis" style="display:none;">
@@ -301,14 +308,43 @@ function computeSignals(item, d) {
   const signals = [];
   if (!d) return signals;
 
+  // --- 24h-Bewegung ---
   if (typeof d.change24h === "number") {
-    if (d.change24h <= BUY_DROP_THRESHOLD) signals.push({ cls: "signal", text: "🟢 Kauf: Kurssturz" });
+    if (d.change24h <= -10) signals.push({ cls: "signal", text: "🟢🟢 Kauf: Starker Kurssturz" });
+    else if (d.change24h <= BUY_DROP_THRESHOLD) signals.push({ cls: "signal", text: "🟢 Kauf: Kurssturz" });
     if (d.change24h >= SELL_RISE_THRESHOLD) signals.push({ cls: "signal-sell", text: "🟡 Verkauf: Kursanstieg" });
   }
 
+  // --- 7-Tage-Trend (Daten werden schon geladen) ---
+  if (typeof d.change7d === "number") {
+    if (d.change7d <= -15) signals.push({ cls: "signal-low", text: `📉 Kauf: Woche schwach (${d.change7d.toFixed(0)}% / 7T)` });
+    if (d.change7d >= 15) signals.push({ cls: "signal-sell", text: `📈 Verkauf: Woche stark (+${d.change7d.toFixed(0)}% / 7T)` });
+  }
+
+  // --- Erholung: Woche im Minus, aber 24h wieder klar im Plus ---
+  if (typeof d.change7d === "number" && typeof d.change24h === "number" &&
+      d.change7d <= -15 && d.change24h >= 3) {
+    signals.push({ cls: "signal", text: "⚡ Erholung? (Woche −, 24h +)" });
+  }
+
+  // --- Nahe am Tages-Tief / -Hoch ---
+  if (typeof d.price === "number" && typeof d.low24h === "number" && d.low24h > 0 &&
+      d.price <= d.low24h * 1.02) {
+    signals.push({ cls: "signal-low", text: "🔻 Am Tagestief" });
+  }
+  if (typeof d.price === "number" && typeof d.high24h === "number" && d.high24h > 0 &&
+      d.price >= d.high24h * 0.98) {
+    signals.push({ cls: "signal-sell", text: "🔺 Am Tageshoch" });
+  }
+
   if (item.type === "crypto") {
-    if (typeof d.athChangePct === "number" && d.athChangePct <= ATH_DISTANCE_THRESHOLD) {
-      signals.push({ cls: "signal-low", text: `🔵 Kauf: Nahe Tief (${d.athChangePct.toFixed(0)}% vom ATH)` });
+    if (typeof d.athChangePct === "number") {
+      if (d.athChangePct <= ATH_DISTANCE_THRESHOLD) {
+        signals.push({ cls: "signal-low", text: `🔵 Kauf: Nahe Tief (${d.athChangePct.toFixed(0)}% vom ATH)` });
+      }
+      if (d.athChangePct >= -5) {
+        signals.push({ cls: "signal-sell", text: `🏆 Vorsicht: Nahe Allzeithoch (${d.athChangePct.toFixed(0)}%)` });
+      }
     }
   } else {
     if (typeof d.price === "number" && typeof d.week52Low === "number" && d.week52Low > 0) {
@@ -380,7 +416,9 @@ async function refreshCrypto() {
         price: coin.current_price,
         change24h: coin.price_change_percentage_24h_in_currency,
         change7d: coin.price_change_percentage_7d_in_currency,
-        athChangePct: coin.ath_change_percentage
+        athChangePct: coin.ath_change_percentage,
+        high24h: coin.high_24h,
+        low24h: coin.low_24h
       };
     });
     localStorage.setItem("priceCache", JSON.stringify(dataCache));
