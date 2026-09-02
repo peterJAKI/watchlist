@@ -81,6 +81,11 @@
     }
     .sync-btn:active { opacity: 0.8; }
     .sync-msg { text-align: center; color: #00bcd4; font-size: 13px; min-height: 18px; margin-top: 8px; }
+
+    .rate-warn {
+      background: #1a1a1a; border: 1px solid #ffd700; color: #ffd700;
+      padding: 8px 10px; border-radius: 8px; font-size: 12px; margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
@@ -96,6 +101,8 @@
   <button class="curr-btn active" id="currUsd" onclick="switchCurrency('usd')">$ USD</button>
   <button class="curr-btn" id="currEur" onclick="switchCurrency('eur')">€ EUR</button>
 </div>
+
+<div class="rate-warn" id="rateWarn" style="display:none;"></div>
 
 <div class="section-label">➕ Neu hinzufügen (zur aktuellen Liste):</div>
 <div class="controls">
@@ -157,6 +164,7 @@ let currentTab = "crypto";
 let currentCurrency = localStorage.getItem("watchlistCurrency") || "usd";
 let usdToEur = null;
 let eurRateError = null;
+let rateStaleFrom = null;
 let rateLimited = false;
 
 function loadItems() {
@@ -198,32 +206,77 @@ function switchCurrency(curr) {
   localStorage.setItem("watchlistCurrency", curr);
   document.getElementById("currUsd").classList.toggle("active", curr === "usd");
   document.getElementById("currEur").classList.toggle("active", curr === "eur");
+  updateRateWarn();
   showItems(document.getElementById("searchInput").value);
   if (curr === "eur" && !usdToEur) {
     fetchExchangeRate().then(() => showItems(document.getElementById("searchInput").value));
   }
 }
 
+// Mehrere Quellen: faellt eine aus, wird die naechste probiert.
+const RATE_SOURCES = [
+  { url: "https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR",
+    pick: d => d && d.rates && d.rates.EUR },
+  { url: "https://open.er-api.com/v6/latest/USD",
+    pick: d => d && d.rates && d.rates.EUR },
+  { url: "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,eur",
+    pick: d => (d && d.bitcoin && d.bitcoin.usd && d.bitcoin.eur) ? d.bitcoin.eur / d.bitcoin.usd : null }
+];
+
 async function fetchExchangeRate() {
+  for (const src of RATE_SOURCES) {
+    try {
+      const res = await fetch(src.url);
+      if (!res.ok) continue;
+      const rate = src.pick(await res.json());
+      if (typeof rate === "number" && rate > 0) {
+        usdToEur = rate;
+        rateStaleFrom = null;
+        eurRateError = null;
+        localStorage.setItem("eurRate", JSON.stringify({ rate, ts: Date.now() }));
+        updateRateWarn();
+        return;
+      }
+    } catch (e) { /* naechste Quelle probieren */ }
+  }
+
+  // Alle Quellen nicht erreichbar: letzten bekannten Kurs verwenden.
   try {
-    const res = await fetch("https://api.frankfurter.app/latest?from=USD&to=EUR");
-    if (!res.ok) { eurRateError = `Fehler ${res.status}`; return; }
-    const data = await res.json();
-    if (data.rates && data.rates.EUR) {
-      usdToEur = data.rates.EUR;
+    const saved = JSON.parse(localStorage.getItem("eurRate") || "null");
+    if (saved && typeof saved.rate === "number" && saved.rate > 0) {
+      usdToEur = saved.rate;
+      rateStaleFrom = saved.ts;
       eurRateError = null;
-    } else {
-      eurRateError = "Kein Kurs erhalten";
+      updateRateWarn();
+      return;
     }
-  } catch (e) {
-    eurRateError = "Netzwerkfehler: " + e.message;
+  } catch (e) { /* kein brauchbarer Speicherstand */ }
+
+  usdToEur = null;
+  eurRateError = "Wechselkurs nicht erreichbar";
+  updateRateWarn();
+}
+
+function updateRateWarn() {
+  const el = document.getElementById("rateWarn");
+  if (!el) return;
+  if (currentCurrency !== "eur") { el.style.display = "none"; return; }
+
+  if (!usdToEur) {
+    el.textContent = "⚠️ Wechselkurs nicht erreichbar — Preise werden in USD angezeigt";
+    el.style.display = "block";
+  } else if (rateStaleFrom) {
+    const d = new Date(rateStaleFrom).toLocaleDateString("de-DE");
+    el.textContent = `⚠️ Wechselkurs offline — letzter bekannter Kurs vom ${d}`;
+    el.style.display = "block";
+  } else {
+    el.style.display = "none";
   }
 }
 
 function formatPrice(usdValue) {
   if (typeof usdValue !== "number") return "—";
-  if (currentCurrency === "eur") {
-    if (!usdToEur) return eurRateError ? eurRateError : "—";
+  if (currentCurrency === "eur" && usdToEur) {
     return (usdValue * usdToEur).toFixed(2) + " €";
   }
   return usdValue.toFixed(2) + " USD";
